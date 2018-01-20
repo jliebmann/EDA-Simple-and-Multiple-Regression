@@ -1,0 +1,570 @@
+---
+title: "STAT 471/571/701 Modern Data Mining - HW 1"
+author:
+- Jason Liebmann
+- Nicole Berkman
+- Saurav Bose
+date: 'Due: September 17, 2017'
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.height=5, fig.width=11, warning = F)
+
+# constants for homework assignments
+hw_num <- 1
+hw_due_date <- "September 17, 2017"
+```
+
+## Overview / Instructions
+
+**All the works submitted should be done through r markdown format.** Find RMarkdown cheat sheet [here](https://www.rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf). For those who have never used it before we urge you to start this homework as soon as possible. 
+
+This is homework #`r paste(hw_num)` of STAT 471/571/701. It will be *due on `r paste(hw_due_date)` by 11:59 PM* on Canvas. You can directly edit this file to add your answers. **Submit a zip file containing the Rmd file, a PDF or HTML version, and all data files necessary with only 1 submission per HW team**. If you intend to work on separate problems separately, compile your answers into 1 Rmd file before submitting. Additionally, ensure that you can 'knit' or compile your Rmd file. It is also likely that you need to configure Rstudio to properly convert files to PDF. [**These instructions**](http://kbroman.org/knitr_knutshell/pages/latex.html#converting-knitrlatex-to-pdf) should be helpful.
+
+
+In general, be as concise as possible while giving a fully complete answer. All necessary data is available in the `Data` folder on Canvas. Make sure to document your code so the teaching fellows can follow along. R Markdown is particularly useful because it follows a 'stream of consciousness' approach: as you write code in a code chunk, make sure to explain what you are doing outside of the chunk. 
+
+Remember that the [Code of Academic Integrity](http://www.upenn.edu/academicintegrity/ai_codeofacademicintegrity.html) strictly applies to this course. Any questions you have on the homework should be directed to [Piazza](https://piazza.com/upenn/fall2017/stat471/). If you have questions that would reveal part of the solution, ask them in 'private to instructors' mode. 
+
+Solutions will be posted after the deadline. Make sure to compare your answers to and understand the solutions.
+
+## Question 0
+
+Review the code and concepts covered during lecture. 
+
+# EDA
+
+## Question 1: Exploratory Data Analysis with Sirius XM
+
+This question is about estimating audience size and is designed as a tutorial on the data exploration process of data cleaning, data summary and data visualization. No formal statistical inference is necessary for this question. First time R users may want to defer or skip this question.
+
+*Background:* Wharton launched a talk show called "Business Radio Powered by the Wharton School" through the Sirius Radio station in January of 2014. Within a short period of time the general reaction had been overwhelmingly positive. To find out the audience size for the show, we designed a survey and collected a data set via MTURK in May of 2014. Our goal was to estimate the audience size. There were 51.6 million Sirius Radio listeners then. One approach is to estimate the proportion of the Wharton listeners to that of the Sirius listeners, $p$, so that we will come up with an audience size estimate of approximately 51.6 times $p$. 
+
+To do so, a simple survey was launched via Amazon Mechanical Turk (MTurk) on May 24, 2014 and we set it to be run for 6 days with a target maximum sample size of 2000 as our goal. Most of the observations came in within the first two days. The main questions of interest are "Have you ever listened to Sirius Radio" and "Have you ever listened to Sirius Business Radio by Wharton?". A few demographic features used as control variables were also collected; these include Gender, Age and Household Income.  
+
+We requested that only people in United States answer the questions. Each person can only fill in the questionnaire once to avoid duplicates. Aside from these restrictions, we opened the survey to everyone in MTurk with a hope that the sample would be more randomly chosen. 
+
+The raw data is stored as `Survey_results_final.csv` on Canvas.
+
+### Q1.1
+
+Load the data into R. 
+
+```{r}
+#loads tidyverse library into R
+library("tidyverse")
+#loads Survey Rseults final csv file into R
+radio <- read.csv("Survey_results_final.csv", header=T, stringsAsFactors = FALSE)
+```
+
+For each of the following 2 questions, there is a `dplyr` solution and a `base` R solution. Provide *both* ways of doing so. 
+
+i. We need to clean and select only the variables of interest. Select only the variables Age, Gender, Education Level, Household Income in 2013, Sirius Listener?, Wharton Listener? and Time used to finish the survey.
+
+```{r}
+#loads dplyr library into RMD file
+library(dplyr)
+#base R solution to select variables stated above and store them in radio.baseR
+radio.newR <- radio[,c(28,30,29,31,32,33,24)]
+#dplyr solution to select variables stated above and store them in radio.dplyr
+radio.newD <- radio %>% select(28,30,29,31,32,33,24)
+```
+
+ii. Change the variable names to be "age", "gender", "education", "income", "sirius", "wharton", "worktime".
+
+```{r}
+#base R solution to change the names of variables using names() function
+colnames(radio.newR) <- c("age","gender","education","income","sirius","wharton","worktime")
+head(radio.newR)
+#dplyr solution to change the name of variables using rename() function
+radio.newD <- radio.newD %>% rename(age = Answer.Age, gender = Answer.Gender, education = Answer.Education, income = Answer.HouseHoldIncome, sirius = Answer.Sirius.Radio, wharton = Answer.Wharton.Radio, worktime = WorkTimeInSeconds)
+head(radio.newD)
+```
+
+### Q1.2
+
+As in real world data with user input, the data is incomplete, missing values, and has incorrect responses. There is no general rule for dealing with these problems beyond “use common sense.” In whatever case, explain what the problems were and how you addressed them. Do not use Excel, however tempting it might be.
+
+Tip: reflect on the reasons for which data could be wrong or missing. How would you address each case? For this homework, if you are trying to predict missing values with regression, you are definitely overthinking. Keep it simple.
+
+```{r}
+#look at the data to see if any inputs are abnormal or outliars
+summary(radio.newD)
+#there are some blank entries and other answers that don't make sense, so we need to remove them and additionally there are answers with typos or in the wrong format that need to be corrected
+#first remove the blanks
+radio.clean <- radio.newD %>%
+  filter(age != "" & gender != "" & education != "" & income != "" & sirius != "" & wharton != "" & worktime != "")
+#now remove answers that are mistakes
+#wrong answers for age include: 223, female, Eighteen (18), 4 (assuming 40)
+radio.clean$age[which(radio.clean$age == "223")] <- 23
+radio.clean$age[which(radio.clean$age == "female")] <- 30
+radio.clean$age[which(radio.clean$age == "Eighteen (18)")] <- 18
+radio.clean$age[which(radio.clean$age == "4")] <- 40
+radio.clean$age <- as.numeric(paste(radio.clean$age))
+
+#Find the row with NA response and replace with the mean age which is 30
+rownames(subset(radio.clean,is.na(radio.clean$age) == TRUE))
+radio.clean$age[1519] <- 30
+#look at age column after removing blanks and correcting mistakes
+summary(radio.clean$age)
+
+#look at gender column after removing blanks and correcting mistakes
+summary(radio.clean$gender)
+#look at education column after removing blanks and correcting mistakes
+summary(radio.clean$education)
+#Subsetting records that have incorrect response - select one
+u <- unique(radio.clean$education)
+u <- u[u!="select one"]
+ed.bad <- subset(radio.clean,!(radio.clean$education %in% u))
+ed.bad <- rownames(ed.bad)
+#eliminating responses that have "select one" for education
+radio.clean <- radio.clean %>% filter(education != "select one") 
+
+#look at income column after removing blanks and correcting mistakes
+summary(radio.clean$income)
+#look at sirius column after removing blanks and correcting mistakes
+summary(radio.clean$sirius)
+#look at wharton column after removing blanks and correcting mistakes
+summary(radio.clean$wharton)
+#look at worktime column after removing blanks and correcting mistakes
+summary(radio.clean$worktime)
+
+#Found 2 records with response No to Have you ever listened to sirius radio but Yes to have you ever listened to Wharton Business Radio. We remove these records to deal with the discrepancy. 
+test2 <- subset(radio.clean, radio.clean$sirius == "No")
+test3 <- subset(test2, test2$wharton == "Yes")
+rad.bad <- rownames(test3)
+radio.clean <- radio.clean[-c(1094,1479),]
+
+
+```
+
+In the data, there we some entries that were missing values and some entries that included answers that did not make sense. In order to deal with the entries that had missing values, we removed entries with missing values in any of the seven variables we had selected above. In order to deal with the entries that included answers that did not make any sense (such as select one for education), we had to remove those answers. We also made some assumptions about what some of the answers were supposed to be in order to better analyze the data.
+
+### Q1.3
+
+Write a brief report to summarize all the variables collected. Include both summary statistics (including sample size) and graphical displays such as histograms or bar charts where appropriate. Comment on what you have found from this sample. (For example - it's very interesting to think about why would one work for a job that pays only 10cents/each survey? Who are those survey workers? The answer may be interesting even if it may not directly relate to our goal.)
+
+```{r}
+#Provide summary of data
+summary(radio.clean)
+#Graph histogram of age distribution
+radio.clean %>% ggplot(aes(x=age))+geom_histogram(binwidth = 1)
+```
+After we cleaned the data of missing and nonsensical responses, there were 1728 responses remaining. The middle 50% of the survey takers were between the ages of 23-34, the mean age was 30.32, the median age was 28. The oldest person was 76 years old and the youngest was 18 yers old.
+
+```{r}
+#Graph bargraph of gender distribution
+radio.clean %>% ggplot(aes(gender, ..count..))+geom_bar()
+```
+The number of male participants was larger than the number of female participants. 998(42.2%) males participated compared to 730(57.8%) females.
+
+```{r}
+#Generate boxplot of age vs. gender
+radio.clean %>% ggplot(aes(x=gender,y=age))+geom_boxplot()
+```
+50% of the female population is about 25-37 years old and 50% of the male population is about 23-33 years old. The average age for females is slightly higher than the average age for males, but they are pretty close to each other.
+
+```{r}
+#Graph bargraph of income distribution
+radio.clean %>% ggplot(aes(income, ..count..))+geom_bar()
+```
+The most common income range among the survey takers was a salary of \$30000 - \$50000. The affluent, i.e. people drawing salaries above $150,000 formed a very distinct minority. 
+
+```{r}
+#Graph bargraph of education level
+radio.clean %>% ggplot(aes(education, ..count..))+geom_bar()+theme(axis.text.x=element_text(angle=60, hjust =1))
+
+```
+Most of the population in our data had at least some college education or a bachelors degrees. Very few people had less than a high school diploma. 612(35.4%) of the people in the sample have a bachelor's degree or other four year degree and 738(42.7%) have some college education or an Associate's degree.
+
+
+```{r}
+#Graph distribution of sirius listeners
+radio.clean %>% ggplot(aes(sirius, ..count..))+geom_bar()
+```
+1339(77.5%) of the participants said that they listen to Sirius radio.
+
+
+```{r}
+#Graph distribution of wharton listners
+radio.clean %>% ggplot(aes(wharton, ..count..))+geom_bar()
+```
+Only 67(3.9%) of participants said they listen to Wharton radio.
+
+```{r}
+#Graph distirbution of worktime
+radio.clean %>% ggplot(aes(x=worktime))+geom_histogram(binwidth = 1)
+```
+The large majority of people took less that 30 seconds to complete the survey. The average worktime was 22.51 seconds and the median worktime was 21 seconds.
+
+In general, it was surprising to find that so many of the participants had a college degree considering MTURK pays a very small amount for people to complete tasks. It is surprising since one would think that someone with a college degree could make more money doing something else. Additionally, a large number of participants said that they had a salaray of $50,000 or above. However, the average worktime was only 22.51 seconds so it may have been worth it for some people to make a small profit off a task that took a very short amount of time. Also, 77% of participants said they listen to Sirius radio, which seems like a high percentage compared to the general population.
+
+### Q1.4 Sample property questions
+
+i. Does this sample appear to be a random sample from the general population of the USA?
+
+One reason we would aruge that this sample does not appear to be a sample from the general population of the USA is that the gender distribution was skewed in favor of males by about a 57/43 split. In the general population of the USA, the gender split should be about 50/50 or possible slightly more females than males. Additionally, the minimum age of the dataset is 18, which tells us that all children were excluded from the sample. Also, the mean age for the sample seems to be lower than the mean age of the US population since few elderly people completed the survey. Also, the proportion of sirius listeners in our sample seems to be much higher than the general US population, even if we take into account higher education levels. That brings us to our final point that the average education of the people in the survey seems to be higher than that of the average person in the US population.
+
+ii. Does this sample appear to be a random sample from the MTURK population?
+
+Based on the data from http://demographics.mturk-tracker.com/#/gender/all, the sample appers to mostly be a random sample from the MTURK population. The distribution of age is much lower for the MTURK population which is consistent with our data. The distribution of gender also seems to be an even split or slightly skewed towards males, which is consistent with our data. The income distribution also seems to correspond well with the average MTRUK user.
+
+### Q1.5
+
+Give a final estimate of the Wharton audience size in January 2014. Assume that the sample is a random sample of the MTURK population, and that the proportion of Wharton listeners vs. Sirius listeners in the general population is the same as that in the MTURK population. Briefly summarize your findings and how you came to that conclusion.
+
+```{r}
+#Computing number of sirius listeners
+sirius.members <- nrow(subset(radio.clean,radio.clean$sirius == "Yes"))
+sirius.members
+#Computing number of wharton radio listeners
+wharton.listeners <- nrow(subset(radio.clean,radio.clean$wharton == "Yes"))
+wharton.listeners
+#Proportion of wharton listeners of the total number of sirius listeners
+proportion <- wharton.listeners/sirius.members
+#Calculate estimate
+estimate.wharton <- proportion*51600000
+estimate.wharton
+```
+Assuming that our sample is a random sample of the MTURK population and that the proportion of Wharton listeners vs. Sirius listeners in the general population is the same as that in the MTURK population, we can simply multiply the ratio of Wharton listeners (67) to sirius listners (1339) in this population with the population size of sirius listeners in the world (51.6 million). The final estimate of the Wharton audience is 2.58 million.
+
+# Simple Regression
+    
+## Question 2
+
+This exercise is designed to help you understand the linear model and see everything through simulations.
+
+Presume that $x$ and $y$ are linearly related with a normal error, such that $y = 1 + 1.2x + \epsilon$. The standard deviation of the error is $\sigma = 2$. 
+
+Note: we can create a sample input vector ($n = 40$) for $x$ with the following code:
+
+```{r}
+#create sample input vector of 40 inputs for the x variable
+x <- seq(0, 1, length = 40)
+```
+
+
+### Q2.1
+
+Create a corresponding output vector for $y$ according to the equation given above. Then, create a scatterplot with $\left(x, y\right)$ pairs. Base R plotting is acceptable, but if you can, attempt to use `ggplot2` to create the plot.
+
+```{r}
+#create corresponding output vector for the y variable, rnorm function generates the SD of the error terms
+y <- 1 + 1.2*x + rnorm(40, mean = 0, sd = 2)
+#create a new data frame for the x and y values
+scatter.data <- data.frame(x,y)
+#create scatterplot of x and y pairs from the vectors generated above
+ggplot(scatter.data) + 
+  geom_point(aes(x = x, y = y), color = "blue") + 
+  labs(title = "X vs. Y Scatterplot", x = "X", y = "Y")
+```
+
+### Q2.2
+
+Find the LS estimates of $\beta_0$ and $\beta_1$, using the `lm()` function. 
+
+```{r}
+#Find estimates for LS line using lm() function
+estimate <- lm(formula = y ~ x, data=scatter.data)
+#Change the names of the columns
+names(estimate$coefficients)[1] <- "b0"
+names(estimate$coefficients)[2] <- "b1"
+#display estimates for LS line
+estimate
+```
+The value displayed under b0 is the estimate for $\beta_0$ and the value displayed under b1 is the estimate for $\beta_1$.
+
+### Q2.3 
+
+Overlay the LS estimates onto a copy of the scatterplot you made above.
+
+```{r}
+#plot scatterplot of (x,y) pairs with the LS line showing
+ggplot(scatter.data, aes(x = x, y = y) ) + 
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", se = F, col="red") +
+  labs(title = "X vs. Y Scatterplot", x = "X", y = "Y") 
+```
+
+### Q2.4
+
+What is the 95% confidence interval for $\beta_1$? Does this confidence interval capture the true $\beta_1$?
+
+```{r}
+#show summary of graph of (x,y) pairs
+summary(estimate)
+#generate CI with function confint() and display the CI
+confint(estimate, level = 0.95)
+```
+The lower bound of the 95% confidence interval for $\beta_1$ is the value under 2.5% next to b1 and the under bound for the 95% confidence interval for $\beta_1$ is the value under 97.5% in the row of b1. Yes, the 95% CI captures the true value of $\beta_1$ of 1.2.
+
+### Q2.5
+
+What is your RSE for this linear model fit? Is it close to $\sigma = 2$?
+
+```{r}
+# calculate residual sum of squares
+RSS <- sum((estimate$res)^2)
+#calculate RSE
+RSE <- sqrt(RSS/estimate$df)
+#display RSE
+RSE
+#get RSE using the summary() function
+sigma2 <- summary(estimate)$sigma
+#display sigma
+sigma2
+# yes, it is close to sigma = 2.
+```
+Yes the RSE is close to $\sigma$ of 2.
+
+
+### Q2.6
+
+This part aims to help understand the notion of sampling statistics, confidence intervals. Let's concentrate on estimating the slope only.  
+
+Generate 100 samples of size $n = 40$, and estimate the slope coefficient from each sample. We include some sample code below, which should aim you in setting up the simulation. Note: this code is written clearly but suboptimally; see the appendix for a more R-like way to do this simulation.
+```{r}
+x <- seq(0, 1, length = 40) 
+n_sim <- 100
+b1 <- numeric(n_sim)   # nsim many LS estimates of beta1 (=1.2)
+upper_ci <- numeric(n_sim)  # lower bound
+lower_ci <- numeric(n_sim)  # upper bound
+t_star <- qt(0.975, 38)
+
+# Carry out the simulation
+for (i in 1:n_sim){
+  y <- 1 + 1.2 * x + rnorm(40, sd = 2)
+  lse <- lm(y ~ x)
+  lse_out <- summary(lse)$coefficients
+  se <- lse_out[2, 2]
+  b1[i] <- lse_out[2, 1]
+  upper_ci[i] <- b1[i] + t_star * se
+  lower_ci[i] <- b1[i] - t_star * se
+}
+results <- cbind(se, b1, upper_ci, lower_ci)
+rm(se, b1, upper_ci, lower_ci, x, n_sim, b1, t_star, lse, lse_out)
+```
+
+i. Summarize the LS estimates of $\beta_1$ (in the above, `sim_results$b1`). Does the sampling distribution agree with the theory?
+```{r}
+#store results for the b1 estimates in new data frame
+results.b1 <- results[,2]
+#check mean and SD of sampling distribution
+cat("mean.b1 =", mean(results.b1), ", std.b1 =", sd(results.b1))
+#histogram of distribution
+hist(results.b1, xlab = "b1 results", main = "Histogram of b1 Results", breaks = 30, xlim = c(-2.5,4), col = "blue")
+#check for normality
+qqnorm(results.b1)
+qqline(results.b1, lwd = 2, col = "red")
+```
+Based on the histogram, the estimates for $\beta_1$ seem to be centered abound 1.2 and looking at the Normal Q-Q Plot, the data appears to be normal and so the sampling distribution seems to agree with the theory.
+
+ii.  How many times do your 95% confidence intervals cover the true $\beta_1$? Display your confidence intervals graphically. 
+```{r}
+#create new data fram with lower and upper bound of CI
+results.CI <- results[,3:4]
+#Converts matrix to a dataframe
+results.CI <- data.frame(results.CI)
+
+#Subsetting the dataframe such that upper limit of the 95% CI is greater than 1.2 and the lower limit of the 95% CI is less than 1.2
+c <- subset(results.CI,results.CI$upper_ci>1.2 & results.CI$lower_ci<1.2)
+#Compute the proportion of the CIs that cover the true $\beta_1$
+nrow(c)/nrow(results.CI)
+```
+The above number times 100 is the number of CIs that cover the true $\beta_1$.
+```{r}
+#converting results matrix to a dataframe to extract the simulation numbers
+temp <- data.frame(results)
+sim.num <- as.integer(rownames(temp))
+#Creating a dataframe using the following columns : simulation number, Upper CI and lower CI
+plot.data <- cbind(sim.num,results[,3:4])
+plot.data <- data.frame(plot.data)
+#Plotting the true b1 as a horizontal line and the CIs for the 100 simulations as vertical lines to check whether the intervals cover the true $\beta_1$
+plot.data <- plot.data %>% mutate(code = !(lower_ci>1.2 | upper_ci <1.2)) %>% mutate(code = as.factor(code))
+plot.data %>% ggplot(aes(x=plot.data$sim.num))+geom_hline(yintercept = 1.2)+geom_segment(data = plot.data, aes(x=sim.num,y=lower_ci,xend=sim.num,yend=upper_ci,color = code))+labs(x="Simulation number", y = "b1")
+
+```
+
+
+# Multiple Regression
+
+## Question 3:
+
+Auto data from ISLR. The original data contains 408 observations about cars. It has some similarity as the data CARS that we use in our lectures. To get the data, first install the package ISLR. The data Auto should be loaded automatically. We use this case to go through methods learnt so far. 
+
+You can access the necessary data with the following code:
+
+```{r}
+# check if you have ISLR package, if not, install it
+if(!requireNamespace('ISLR')) install.packages('ISLR') 
+auto_data <- ISLR::Auto
+```
+
+Get familiar with this dataset first. You can use `?ISLR::Auto` to view a description of the dataset. 
+
+### Q3.1
+Explore the data, with particular focus on pairwise plots and summary statistics. Briefly summarize your findings and any peculiarities in the data.
+```{r}
+#get summary of variables
+summary(auto_data)
+#create pairwise plot for all variables exluding name
+pairs(auto_data[,1:8], gap = 0, pch=".")
+```
+The average MPG seems to decrease as the number of cylinders increases; however, the average MPG seems to increase as the number of cylinders seems to increase from 3 to 4. Looking at the data, we only have a few data points for cars with 3 cylinders, so we may be getting a false trend from these data points which may make our model worse. Displacement is positively linearly correlated with horsepower and weight. Also, horsepower and weight are positively linearly correlated. MPG has similar curved negative correlations with displacement, horsepower and weight. MPG seems to slowly increase over time since the average mpg increases as the year increases. The means of displacement, weight, and horsepower seem to decrease as the year increases. Displacement, horsepower and weight all decrease in mean value as acceleration increases. The mpg of the car increases in mean value as acceleration increases. One peculiarity is that the maximum mpg is 46.60 but these cars were made in the 70s and 80s which does not seem right for a car of that age. Another peculiarity is that cars with origin 2 and 3 don't have data points with displacement greater than 250.
+
+### Q3.2
+What effect does time have on MPG?
+
+i. Start with a simple regression of mpg vs. year and report R's `summary` output. Is year a significant variable at the .05 level? State what effect year has on mpg, if any, according to this model.
+```{r}
+names(auto_data)
+auto_simple <- lm(mpg ~ year, data=auto_data)
+summary(auto_simple)
+```
+  Yes, year is a significant variable at the 0.05 level. After running a linear regression, the p-value is <2e-16. The effect of year on mpg is that for every year newer the car is, the mpg will increase by 1.23004 units; however, none of the other variables are being held constant in our model.
+  
+ii. Add horsepower on top of the variable year. Is year still a significant variable at the .05 level? Give a precise interpretation of the year effect found here.
+```{r}
+names(auto_data)
+auto_multi <- lm(mpg ~ year + horsepower, data=auto_data)
+summary(auto_multi)
+```
+  Yes, year is still a significant level at the 0.05 level even after adding horsepower to the model. The precise interpretation of the year effect found here is that holding horsepower constant, the mpg of a car will increase by 0.657268 units for every year newer the car is manufactured.
+  
+iii. The two 95% CI's for the coefficient of year differ among i) and ii). How would you explain the difference to a non-statistician?
+```{r}
+confint_simple <- confint(auto_simple)
+confint_multi <- confint(auto_multi)
+confint_simple
+confint_multi
+```
+
+  The confidence intervals are different because in the multiple regression model we added another predictor, horsepower, into our model which will change the estimate on the other. By adding a variable into our model, the interpretation of the estimate for the year variable now includes holding horsepower constant, whereas before it did not. By incorporating horsepower into the model, we are saying that horsepower matters now, but in the simple model, we were saying it did not matter by not including it in the model. Additionally, in the multiple regression model we are able to further isolate the effect of year on MPG from the other variables since we are holding horsepower constant, so the confidence interval will shift more towards the isolated effect of year on MPG.
+  
+
+iiii. Do a model with interaction by fitting `lm(mpg ~ year * horsepower)`. Is the interaction effect significant at .05 level? Explain the year effect (if any). 
+```{r}
+auto_int <- lm(mpg ~ year * horsepower, data=auto_data)
+summary(auto_int)
+```
+Yes, the interaction effect is significant at a 0.05 level since the p-value for the year*horsepower variable (labeled as year:horsepower) is <2e-16 which is less than 0.05. The effect of year on mpg is that mpg will increase by 2.192e+00 + (-1.596e-02 times horsepower) units for every one unit increase in year, holding horsepower constant, since we have added an interaction term into our model. Including the interaction term now means that the effect of the year, depends on the value of horsepower. The estimates b1 and b2 no longer tells us the effect of x1 or x2 because thir effect will always depend on the value of the other variable. We need to take into account the value for b3 as well as the value of horsepower in order to determine the effect of year.
+
+### Q3.3
+Remember that the same variable can play different roles! Take a quick look at the variable `cylinders`, try to use this variable in the following analyses wisely. We all agree that larger number of cylinder will lower mpg. However, we can interpret `cylinders` as either a continuous (numeric) variable or a categorical variable.
+
+i. Fit a model, that treats `cylinders` as a continuous/numeric variable: `lm(mpg ~ horsepower + cylinders, ISLR::Auto)`. Is `cylinders` significant at the 0.01 level? What effect does `cylinders` play in this model?
+
+```{r}
+#graph model of horsepower and cylinders vs. MPG with cylinders treated as a continuous variable
+auto_multi2 <- lm(mpg ~ horsepower + cylinders, ISLR::Auto)
+#provide summary of auto_multi2 model
+summary(auto_multi2)
+```
+The variable cylinders is significant at the 0.01 level because the p-value for the hypothesis test, which has a null of b2 = 0 and a alternative of b2 does not equal 0, is 2.24e-13 which is less than 0.01. The effect of cylinders in the model is that holding horsepower constant, every additional cylinder added to the car will cause the mpg of the car to decrease by 1.91982 units.
+
+ii. Fit a model that treats `cylinders` as a categorical/factor variable:  `lm(mpg ~ horsepower + as.factor(cylinders), ISLR::Auto)`. Is `cylinders` significant at the .01 level? What is the effect of `cylinders` in this model? Use `anova(fit1, fit2)` and `Anova(fit2`)` to help gauge the effect. Explain the difference between `anova()` and `Anova`.
+
+```{r}
+#import car package
+library("car")
+#graph model of horsepower and cylinders vs. MPG, with cylinders treated as a categorical/factor variable
+auto_multi_factors <- lm(mpg ~ horsepower + as.factor(cylinders), ISLR::Auto)
+#provide summary of auto_multi_factors model
+summary(auto_multi_factors)
+#anova test on the two models that has cylinders as a continuous variable and has cylinders as a factor variable
+anova(auto_multi2, auto_multi_factors)
+#anova test on the model that treats cylinders as factors
+Anova(auto_multi_factors)
+```
+In the model that treats the variable cylinders as a categorical predictor, only the categorical variable 4 cylinders is significant at the 0.01 level. However, we can use the Anova test to evalue the significance of all the different categories of cylinders as a whole and the p-value of that f-test is <2.2e-16 which is less that 0.01 so the predictor of cylinders as factors is significant at the 0.01 level. The effect of cylinders is that the intercept of mpg will change based on how many cylinders the car has. If the car has 4 cylinders, the mpg will increase by 6.57344 units vs. cars with 3 cylinders with the same horsepower. If the car has 5 cylinders, the mpg will increase by 5.07367 units vs. cars with 3 cylinders with the same horsepower. The difference between anova and Anova is that anova performs a hypothesis test that is comparing the two models (auto_multi2 and auto_multi_factors). The null of this hypothesis test is the reduced model (with cylinders treated as a continuous variable) and the alternative is the full model (with cylinders as factors). It is testing whether all of the added betas in the full model are equal to zero or not with the alternative being that they are not all equal to zero. The Anova function groups all the categorical predictors for cylinders together and will perform an f-test that will tell us if the categorical variable is useful as a whole. The Anova function is testing whether the coefficients for the cylinder categories (4, 5, 6, and 8) are all equal to each other or not (which is the same as testing if they are all equal to zero or not), the null being that they are equal and the alternative being that they are not equal. The Anova function is testing if there is any difference between the number of cylinders a car has.
+
+iii. What are the fundamental differences between treating `cylinders` as a numeric and or a factor models?
+
+One fundamental difference between the model that treats `cylinders` as a numeric variable and the model that treats `cylinders` as a categorical varibale is that the first models only estimates three betas, and the second model estimates six betas. In the model that treats cylinders as factors, we now have more betas to minimize over. Also, in the model with cylinders as a numeric variable there is only one least squares line, whereas in the model with cylinders as a factor variable, the model has 5 different least squares line, all with the same slope but with different intercepts. By treating cylinders as numeric, we are allowing the model to predict the mpg for cars with fractions of cylinders, which do not exist. Treating them as categories prevents the model from predicting the expected mpg for cars with a fractional number of cylinders.
+
+
+### Q3.4
+Final modelling question: we want to explore the effects of each feature as best as possible. You may explore interactions, feature transformations, higher order terms, or other strategies within reason. The model(s) should be as parsimonious (simple) as possible unless the gain in accuracy is significant from your point of view.
+  
+i. Describe the final model. Include diagnostic plots with particular focus on the model residuals and diagnoses.
+
+go back and start from beginning now that we have transformed y
+do other diagnostics tests
+
+```{r}
+#create new data frame from auto_data minus the variables name, displacement, origin, cylinders, acceleration and horsepower)
+auto_data2 <- select(auto_data, -name, -displacement, -origin, -cylinders, -acceleration)
+#create summary of the data frame
+summary(auto_data2)
+#view head of data frame
+head(auto_data2)
+#fit new model to the data with a LS line
+fit.all <- lm((1/mpg) ~., auto_data2)
+#summary of LS estimates and other aspects of the model
+summary(fit.all)
+#view residual plot for model diagnoses
+plot(fit.all, 1)
+#view normality plot for model diagnoses
+plot(fit.all, 2)
+```
+
+
+ii. Summarize the effects found.
+
+One of the effects we found is that holding the weight and year of the car constant, for every one unit change in the horsepower of the car, the 1/mpg of the car will increase by 8.0993e-05 units. Another effect we found is that for every one pound increase in the weight of the car, the 1/mpg of the car will increase by 1.245e-05 units, holding the year and horsepower of the car constant. A third effect found was that for every one unit increase in the year the car was made, the 1/mpg for the car decreases by 1.282e-03, holding the weight and horsepower of the car constant.
+
+iii. Predict the mpg of a car that is: built in 1983, in US, red, 180 inches long, 8 cylinders, 350 displacement, 260 as horsepower and weighs 4000 pounds. Give a 95% CI.
+
+```{r}
+#create new car for prediction with same structure as data
+newcar <- auto_data[1, ]
+#assign inputs for the different columns
+newcar[1] <- "NA"
+newcar[2:8] <- c(8, 350, 260, 4000, "NA", 83, 1)
+newcar[9] <- "NA"
+#changing the data type of the inputs to numeric
+newcar$cylinders <- as.numeric(newcar$cylinders)
+newcar$displacement <- as.numeric(newcar$displacement)
+newcar$horsepower <- as.numeric(newcar$horsepower)
+newcar$weight <- as.numeric(newcar$weight)
+newcar$year <- as.numeric(newcar$year)
+newcar$origin <- as.numeric(newcar$origin)
+#running prediction for newcar
+predict(fit.all, newcar,  interval = "predict", se.fit = TRUE)
+```
+The 95% PI for the 1/mpg of a car with these specifications in 0.06414193 +/- 2(RSE) = 0.06414193 +/- 2(0.00576404) = [0.05261385, 0.07567001]. So the 95% PI for the mpg of a car with these specifications is: [13.2153, 19.0064].
+The 95% CI for the mean 1/mpg of all cars with these specifications in 0.06414193 +/- 2(SE) = 0.06414193 +/- 2(0.002223099) = [0.05969575, 0.06858811]. So the 95% CI for the mean mpg of all cars with these specifications is: [14.5780, 16.7516].
+
+
+
+
+
+## Appendix
+
+This is code that is roughly equivalent to what we provide above in Question 2 (simulations).
+
+```{r, eval = F}
+simulate_lm <- function(n) {
+  # note: `n` is an input but not used (don't worry about this hack)
+  x <- seq(0, 1, length = 40) 
+  y <- 1 + 1.2 * x + rnorm(40, sd = 2)
+  t_star <- qt(0.975, 38)
+  lse <- lm(y ~ x)
+  lse_out <- summary(lse)$coefficients
+  se <- lse_out[2, 2]
+  b1 <- lse_out[2, 1]
+  upper_CI = b1 + t_star * se
+  lower_CI = b1 - t_star * se
+  return(data.frame(se, b1, upper_CI, lower_CI))
+}
+
+# this step runs the simulation 100 times, 
+# then matrix transposes the result so rows are observations 
+sim_results <- data.frame(t(sapply(X = 1:100, FUN = simulate_lm)))
+```
+
